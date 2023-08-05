@@ -22,6 +22,7 @@ import logging
 import os
 import sys
 import torch
+import numpy as np
 
 from scipy.stats import pearsonr, spearmanr, truncnorm
 from sklearn.metrics import (
@@ -51,6 +52,10 @@ class InputExample(object):
         FGPOS=None,
         text_a_2=None,
         text_b_2=None,
+
+        # added to include the word senses
+        word_sense=None,
+        definition=None,
     ):
         """Constructs a InputExample.
 
@@ -72,6 +77,10 @@ class InputExample(object):
         self.text_a_2 = text_a_2
         self.text_b_2 = text_b_2
 
+        # added to include the word senses
+        self.word_sense = word_sense
+        self.definition = definition
+
 
 class InputFeatures(object):
     """A single set of features of data."""
@@ -86,6 +95,10 @@ class InputFeatures(object):
         input_ids_2=None,
         input_mask_2=None,
         segment_ids_2=None,
+        # added
+        input_ids_3=None,
+        input_mask_3=None,
+        segment_ids_3=None
     ):
         self.input_ids = input_ids
         self.input_mask = input_mask
@@ -95,6 +108,10 @@ class InputFeatures(object):
         self.input_ids_2 = input_ids_2
         self.input_mask_2 = input_mask_2
         self.segment_ids_2 = segment_ids_2
+        # added
+        self.input_ids_3 = input_ids_3,
+        self.input_mask_3 = input_mask_3,
+        self.segment_ids_3 = segment_ids_3
 
 
 class DataProcessor(object):
@@ -132,7 +149,8 @@ class TrofiProcessor(DataProcessor):
         """See base class."""
         if k is not None:
             return self._create_examples(
-                self._read_tsv(os.path.join(data_dir, "train" + str(k) + ".tsv")), "train"
+                self._read_tsv(os.path.join(
+                    data_dir, "train" + str(k) + ".tsv")), "train"
             )
         else:
             return self._create_examples(
@@ -143,7 +161,8 @@ class TrofiProcessor(DataProcessor):
         """See base class."""
         if k is not None:
             return self._create_examples(
-                self._read_tsv(os.path.join(data_dir, "test" + str(k) + ".tsv")), "test"
+                self._read_tsv(os.path.join(
+                    data_dir, "test" + str(k) + ".tsv")), "test"
             )
         else:
             return self._create_examples(self._read_tsv(os.path.join(data_dir, "test.tsv")), "test")
@@ -152,7 +171,8 @@ class TrofiProcessor(DataProcessor):
         """See base class."""
         if k is not None:
             return self._create_examples(
-                self._read_tsv(os.path.join(data_dir, "dev" + str(k) + ".tsv")), "dev"
+                self._read_tsv(os.path.join(
+                    data_dir, "dev" + str(k) + ".tsv")), "dev"
             )
         else:
             return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
@@ -225,6 +245,26 @@ class VUAProcessor(DataProcessor):
                         FGPOS=FGPOS,
                         text_a_2=text_a_2,
                         text_b_2=index_2,
+                        # added for VUA18 datasets
+                        word_sense=None,
+                        definition=None
+                    )
+                )
+            # added for VUA20 datasets
+            elif len(line) == 9:
+                index = line[5]
+                word_sense = line[7]
+                definition = line[8]
+                examples.append(
+                    InputExample(
+                        guid=guid,
+                        text_a=text_a,
+                        text_b=index,
+                        label=label,
+                        POS=POS,
+                        FGPOS=FGPOS,
+                        word_sense=word_sense,
+                        definition=definition,
                     )
                 )
             else:
@@ -264,9 +304,11 @@ def convert_examples_to_features(
                 # If w is a target word, tokenize the word and save to text_b
                 if i == text_b:
                     # consider the index due to models that use a byte-level BPE as a tokenizer (e.g., GPT2, RoBERTa)
-                    text_b = tokenizer.tokenize(w) if i == 0 else tokenizer.tokenize(" " + w)
+                    text_b = tokenizer.tokenize(
+                        w) if i == 0 else tokenizer.tokenize(" " + w)
                     break
-                w_tok = tokenizer.tokenize(w) if i == 0 else tokenizer.tokenize(" " + w)
+                w_tok = tokenizer.tokenize(
+                    w) if i == 0 else tokenizer.tokenize(" " + w)
 
                 # Count number of tokens before the target word to get the target word index
                 if w_tok:
@@ -321,9 +363,12 @@ def convert_examples_to_features(
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join([str(x) for x in tokens]))
-            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-            logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            logger.info("input_ids: %s" %
+                        " ".join([str(x) for x in input_ids]))
+            logger.info("input_mask: %s" %
+                        " ".join([str(x) for x in input_mask]))
+            logger.info("segment_ids: %s" %
+                        " ".join([str(x) for x in segment_ids]))
             logger.info("label: %s (id = %s)" % (example.label, str(label_id)))
 
         features.append(
@@ -366,9 +411,11 @@ def convert_two_examples_to_features(
                 # If w is a target word, tokenize the word and save to text_b
                 if i == text_b:
                     # consider the index due to models that use a byte-level BPE as a tokenizer (e.g., GPT2, RoBERTa)
-                    text_b = tokenizer.tokenize(w) if i == 0 else tokenizer.tokenize(" " + w)
+                    text_b = tokenizer.tokenize(
+                        w) if i == 0 else tokenizer.tokenize(" " + w)
                     break
-                w_tok = tokenizer.tokenize(w) if i == 0 else tokenizer.tokenize(" " + w)
+                w_tok = tokenizer.tokenize(
+                    w) if i == 0 else tokenizer.tokenize(" " + w)
 
                 # Count number of tokens before the target word to get the target word index
                 if w_tok:
@@ -427,9 +474,12 @@ def convert_two_examples_to_features(
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join([str(x) for x in tokens]))
-            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-            logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            logger.info("input_ids: %s" %
+                        " ".join([str(x) for x in input_ids]))
+            logger.info("input_mask: %s" %
+                        " ".join([str(x) for x in input_mask]))
+            logger.info("segment_ids: %s" %
+                        " ".join([str(x) for x in segment_ids]))
             logger.info("label: %s (id = %s)" % (example.label, str(label_id)))
 
         features.append(
@@ -472,10 +522,12 @@ def convert_examples_to_two_features(
                 # If w is a target word, tokenize the word and save to text_b
                 if i == text_b:
                     # consider the index due to models that use a byte-level BPE as a tokenizer (e.g., GPT2, RoBERTa)
-                    text_b = tokenizer.tokenize(w) if i == 0 else tokenizer.tokenize(" " + w)
+                    text_b = tokenizer.tokenize(
+                        w) if i == 0 else tokenizer.tokenize(" " + w)
                     break
 
-                w_tok = tokenizer.tokenize(w) if i == 0 else tokenizer.tokenize(" " + w)
+                w_tok = tokenizer.tokenize(
+                    w) if i == 0 else tokenizer.tokenize(" " + w)
 
                 # Count number of tokens before the target word to get the target word index
                 if w_tok:
@@ -588,6 +640,234 @@ def convert_examples_to_two_features(
                 input_ids_2=input_ids_2,
                 input_mask_2=input_mask_2,
                 segment_ids_2=segment_ids_2,
+            )
+        )
+
+    return features
+
+
+# modified by melzohbi for the is_train input
+def convert_examples_to_two_features_with_wsd(
+    examples, label_list, max_seq_length, tokenizer, output_mode, args
+):
+    """Loads a data file into a list of `InputBatch`s."""
+    label_map = {label: i for i, label in enumerate(label_list)}
+
+    features = []
+    for (ex_index, example) in enumerate(examples):
+        if ex_index % 10000 == 0:
+            logger.info("Writing example %d of %d" % (ex_index, len(examples)))
+
+        tokens_a = tokenizer.tokenize(example.text_a)  # tokenize the sentence
+        tokens_b = None
+        text_b = None
+
+        if example.word_sense is None and example.definition is None:
+            example.text_b = example.FGPOS
+            example.word_sense = example.text_a_2
+            example.definition = example.text_b_2
+
+        try:
+            text_b = int(example.text_b)  # index of target word
+            tokens_b = text_b
+
+            # truncate the sentence to max_seq_len
+            if len(tokens_a) > max_seq_length - 6:
+                tokens_a = tokens_a[: (max_seq_length - 6)]
+
+            # Find the target word index
+            for i, w in enumerate(example.text_a.split()):
+                # If w is a target word, tokenize the word and save to text_b
+                if i == text_b:
+                    # consider the index due to models that use a byte-level BPE as a tokenizer (e.g., GPT2, RoBERTa)
+                    text_b = tokenizer.tokenize(
+                        w) if i == 0 else tokenizer.tokenize(" " + w)
+                    break
+
+                w_tok = tokenizer.tokenize(
+                    w) if i == 0 else tokenizer.tokenize(" " + w)
+
+                # Count number of tokens before the target word to get the target word index
+                if w_tok:
+                    tokens_b += len(w_tok) - 1
+
+            if tokens_b + len(text_b) > max_seq_length - 6:
+                continue
+
+        except TypeError:
+            if example.text_b:
+                tokens_b = tokenizer.tokenize(example.text_b)
+                # Account for [CLS], [SEP], [SEP] with "- 3"
+                _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
+            else:
+                # Account for [CLS] and [SEP] with "- 2"
+                if len(tokens_a) > max_seq_length - 2:
+                    tokens_a = tokens_a[: (max_seq_length - 2)]
+
+        tokens = [tokenizer.cls_token] + tokens_a + [tokenizer.sep_token]
+
+        # POS tag tokens
+        if args.use_pos:
+            POS_token = tokenizer.tokenize(example.POS)
+            tokens += POS_token + [tokenizer.sep_token]
+
+        # Local context
+        if args.use_local_context:
+            local_start = 1
+            local_end = local_start + len(tokens_a)
+            comma1 = tokenizer.tokenize(",")[0]
+            comma2 = tokenizer.tokenize(" ,")[0]
+            try:
+                for i, w in enumerate(tokens):
+                    if i < tokens_b + 1 and (w in [comma1, comma2]):
+                        local_start = i
+                    if i > tokens_b + 1 and (w in [comma1, comma2]):
+                        local_end = i
+                        break
+            except TypeError:
+                print(example.guid)
+                pass
+
+            segment_ids = [
+                2 if i >= local_start and i <= local_end else 0 for i in range(len(tokens))
+            ]
+        else:
+            segment_ids = [0] * len(tokens)
+
+        # POS tag encoding
+        after_token_a = False
+        for i, t in enumerate(tokens):
+            if t == tokenizer.sep_token and after_token_a == False:
+                after_token_a = True
+            if after_token_a and t != tokenizer.sep_token:
+                segment_ids[i] = 3
+
+        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+
+        try:
+            tokens_b += 1  # add 1 to the target word index considering [CLS]
+            for i in range(len(text_b)):
+                segment_ids[tokens_b + i] = 1
+        except TypeError:
+            pass
+
+        input_mask = [1] * len(input_ids)
+        padding = [tokenizer.convert_tokens_to_ids(tokenizer.pad_token)] * (
+            max_seq_length - len(input_ids)
+        )
+        input_ids += padding
+        input_mask += [0] * len(padding)
+        segment_ids += [0] * len(padding)
+
+        assert len(input_ids) == max_seq_length
+        assert len(input_mask) == max_seq_length
+        assert len(segment_ids) == max_seq_length
+
+        if output_mode == "classification":
+            label_id = label_map[example.label]
+        else:
+            raise KeyError(output_mode)
+
+        if type(example.word_sense) is tuple:
+            word_sense = tokenizer.tokenize(example.word_sense[0])
+        else:
+            word_sense = tokenizer.tokenize(example.word_sense)
+
+ # >>    # Second features (Target word)
+        tokens = [tokenizer.cls_token] + text_b + \
+            [tokenizer.sep_token] + word_sense + [tokenizer.sep_token]
+
+        # I am using the use_pos here eventhoguh it shouldn't temporary.
+        segment_ids_2 = [0] * len(tokens)
+
+        # POS tag encoding and symbol tag encodings as well
+        after_token_b = False
+        for i, t in enumerate(tokens):
+            if t == tokenizer.sep_token:
+                after_token_b = True
+            if after_token_b and t != tokenizer.sep_token:
+                # using 2 as the same number as the local context
+                segment_ids_2[i] = 2
+
+        try:
+            tokens_b = 1  # add 1 to the target word index considering [CLS]
+            for i in range(len(text_b)):  # range(len(in_context_def)):
+                segment_ids_2[tokens_b + i] = 1
+        except TypeError:
+            pass
+
+        # The mask has 1 for real tokens and 0 for padding tokens. Only real tokens are attended to.
+        input_ids_2 = tokenizer.convert_tokens_to_ids(tokens)
+        input_mask_2 = [1] * len(input_ids_2)
+
+        padding = [tokenizer.convert_tokens_to_ids(tokenizer.pad_token)] * (
+            max_seq_length - len(input_ids_2)
+        )
+        input_ids_2 += padding
+        input_mask_2 += [0] * len(padding)
+        segment_ids_2 += [0] * len(padding)
+
+        assert len(input_ids_2) == max_seq_length
+        assert len(input_mask_2) == max_seq_length
+        assert len(segment_ids_2) == max_seq_length
+
+        if type(example.definition) is tuple:
+            definition = tokenizer.tokenize(example.definition[0])
+        else:
+            definition = tokenizer.tokenize(example.definition)
+
+        # preparing the target word with the symbolof feature.
+        tokens_c = [tokenizer.cls_token] + text_b + \
+            [tokenizer.sep_token] + definition + [tokenizer.sep_token]
+
+        segment_ids_3 = [0] * len(tokens_c)
+
+        # symbol tag encodings as well
+        after_token_c = False
+        for i, t in enumerate(tokens_c):
+            if t == tokenizer.sep_token:
+                after_token_c = True
+            if after_token_c and t != tokenizer.sep_token:
+                # using 2 as the same number as the local context
+                segment_ids_3[i] = 2
+
+        try:
+            tokens_b = 1  # add 1 to the target word index considering [CLS]
+            for i in range(len(text_b)):  # range(len(out_context_def)):
+                segment_ids_3[tokens_b + i] = 1
+        except TypeError:
+            pass
+
+        # The mask has 1 for real tokens and 0 for padding tokens. Only real tokens are attended to.
+        input_ids_3 = tokenizer.convert_tokens_to_ids(tokens_c)
+        input_mask_3 = [1] * len(input_ids_3)
+
+        padding = [tokenizer.convert_tokens_to_ids(tokenizer.pad_token)] * (
+            max_seq_length - len(input_ids_3)
+        )
+        input_ids_3 += padding
+        input_mask_3 += [0] * len(padding)
+        segment_ids_3 += [0] * len(padding)
+
+        assert len(input_ids_3) == max_seq_length
+        assert len(input_mask_3) == max_seq_length
+        assert len(segment_ids_3) == max_seq_length
+
+        features.append(
+            InputFeatures(
+                input_ids=input_ids,
+                input_mask=input_mask,
+                segment_ids=segment_ids,
+                label_id=label_id,
+                guid=example.guid + " " + str(example.text_b),
+                input_ids_2=input_ids_2,
+                input_mask_2=input_mask_2,
+                segment_ids_2=segment_ids_2,
+                # added by melzohbi
+                input_ids_3=input_ids_3,
+                input_mask_3=input_mask_3,
+                segment_ids_3=segment_ids_3
+
             )
         )
 

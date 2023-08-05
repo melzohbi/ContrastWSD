@@ -20,6 +20,7 @@ from modeling import (
     AutoModelForSequenceClassification_SPV,
     AutoModelForSequenceClassification_MIP,
     AutoModelForSequenceClassification_SPV_MIP,
+    AutoModelForSequenceClassification_WSD
 )
 from run_classifier_dataset_utils import processors, output_modes, compute_metrics
 from data_loader import load_train_data, load_train_data_kf, load_test_data
@@ -79,7 +80,8 @@ def main():
     args.log_dir = log_dir
 
     # set CUDA devices
-    device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available()
+                          and not args.no_cuda else "cpu")
     args.n_gpu = torch.cuda.device_count()
     args.device = device
 
@@ -100,14 +102,16 @@ def main():
     args.num_labels = len(label_list)
 
     # build tokenizer and model
-    tokenizer = AutoTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.bert_model, do_lower_case=args.do_lower_case)
     model = load_pretrained_model(args)
 
     ########### Training ###########
 
-    # VUA18 / VUA20 for bagging 
+    # VUA18 / VUA20 for bagging
     if args.do_train and args.task_name == "vua" and args.num_bagging:
-        train_data, gkf = load_train_data_kf(args, logger, processor, task_name, label_list, tokenizer, output_mode)
+        train_data, gkf = load_train_data_kf(
+            args, logger, processor, task_name, label_list, tokenizer, output_mode)
 
         for fold, (train_idx, valid_idx) in enumerate(tqdm(gkf, desc="bagging...")):
             if fold != args.bagging_index:
@@ -118,15 +122,19 @@ def main():
             # Load data
             temp_train_data = TensorDataset(*train_data[train_idx])
             train_sampler = RandomSampler(temp_train_data)
-            train_dataloader = DataLoader(temp_train_data, sampler=train_sampler, batch_size=args.train_batch_size)
+            train_dataloader = DataLoader(
+                temp_train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
             # Reset Model
             model = load_pretrained_model(args)
-            model, best_result = run_train(args, logger, model, train_dataloader, processor, task_name, label_list, tokenizer, output_mode)
+            model, best_result = run_train(
+                args, logger, model, train_dataloader, processor, task_name, label_list, tokenizer, output_mode)
 
             # Test
-            all_guids, eval_dataloader = load_test_data(args, logger, processor, task_name, label_list, tokenizer, output_mode)
-            preds = run_eval(args, logger, model, eval_dataloader, all_guids, task_name, return_preds=True)
+            all_guids, eval_dataloader = load_test_data(
+                args, logger, processor, task_name, label_list, tokenizer, output_mode)
+            preds = run_eval(args, logger, model, eval_dataloader,
+                             all_guids, task_name, return_preds=True)
             with open(os.path.join(args.data_dir, f"seed{args.seed}_preds_{fold}.p"), "wb") as f:
                 pickle.dump(preds, f)
 
@@ -135,14 +143,15 @@ def main():
             if "VUA20" in args.data_dir:
                 # Verb
                 args.data_dir = "data/VUAverb"
-                all_guids, eval_dataloader = load_test_data(args, logger, processor, task_name, label_list, tokenizer, output_mode)
-                preds = run_eval(args, logger, model, eval_dataloader, all_guids, task_name, return_preds=True)
+                all_guids, eval_dataloader = load_test_data(
+                    args, logger, processor, task_name, label_list, tokenizer, output_mode)
+                preds = run_eval(args, logger, model, eval_dataloader,
+                                 all_guids, task_name, return_preds=True)
                 with open(os.path.join(args.data_dir, f"seed{args.seed}_preds_{fold}.p"), "wb") as f:
                     pickle.dump(preds, f)
 
             logger.info(f"Saved to {logger.log_dir}")
-        return                
-
+        return
 
     # VUA18 / VUA20
     if args.do_train and args.task_name == "vua":
@@ -209,17 +218,20 @@ def main():
                 targets = ["adj", "adv", "noun", "verb"]
             orig_data_dir = args.data_dir
             for idx, target in tqdm(enumerate(targets)):
-                logger.info(f"====================== Evaluating {target} =====================")
+                logger.info(
+                    f"====================== Evaluating {target} =====================")
                 args.data_dir = os.path.join(orig_data_dir, target)
                 all_guids, eval_dataloader = load_test_data(
                     args, logger, processor, task_name, label_list, tokenizer, output_mode
                 )
-                run_eval(args, logger, model, eval_dataloader, all_guids, task_name)
+                run_eval(args, logger, model, eval_dataloader,
+                         all_guids, task_name)
         else:
             all_guids, eval_dataloader = load_test_data(
                 args, logger, processor, task_name, label_list, tokenizer, output_mode
             )
-            run_eval(args, logger, model, eval_dataloader, all_guids, task_name)
+            run_eval(args, logger, model, eval_dataloader,
+                     all_guids, task_name)
 
     # TroFi / MOH-X (K-fold)
     elif (args.do_eval or args.do_test) and args.task_name == "trofi":
@@ -229,7 +241,8 @@ def main():
             all_guids, eval_dataloader = load_test_data(
                 args, logger, processor, task_name, label_list, tokenizer, output_mode, k
             )
-            result = run_eval(args, logger, model, eval_dataloader, all_guids, task_name)
+            result = run_eval(args, logger, model,
+                              eval_dataloader, all_guids, task_name)
             k_result.append(result)
 
         # Calculate average result
@@ -306,6 +319,20 @@ def run_train(
                     input_mask_2,
                     segment_ids_2,
                 ) = batch
+            elif args.model_type == "CONTRAST":
+                (
+                    input_ids,
+                    input_mask,
+                    segment_ids,
+                    label_ids,
+                    input_ids_2,
+                    input_mask_2,
+                    segment_ids_2,
+                    input_ids_3,
+                    input_mask_3,
+                    segment_ids_3,
+                ) = batch
+
             else:
                 input_ids, input_mask, segment_ids, label_ids = batch
 
@@ -317,8 +344,10 @@ def run_train(
                     token_type_ids=segment_ids,
                     attention_mask=input_mask,
                 )
-                loss_fct = nn.NLLLoss(weight=torch.Tensor([1, args.class_weight]).to(args.device))
-                loss = loss_fct(logits.view(-1, args.num_labels), label_ids.view(-1))
+                loss_fct = nn.NLLLoss(weight=torch.Tensor(
+                    [1, args.class_weight]).to(args.device))
+                loss = loss_fct(
+                    logits.view(-1, args.num_labels), label_ids.view(-1))
             elif args.model_type in ["MELBERT_MIP", "MELBERT"]:
                 logits = model(
                     input_ids,
@@ -329,8 +358,29 @@ def run_train(
                     token_type_ids=segment_ids,
                     attention_mask=input_mask,
                 )
-                loss_fct = nn.NLLLoss(weight=torch.Tensor([1, args.class_weight]).to(args.device))
-                loss = loss_fct(logits.view(-1, args.num_labels), label_ids.view(-1))
+                loss_fct = nn.NLLLoss(weight=torch.Tensor(
+                    [1, args.class_weight]).to(args.device))
+                loss = loss_fct(
+                    logits.view(-1, args.num_labels), label_ids.view(-1))
+
+            elif args.model_type == "CONTRAST":
+                logits = model(
+                    input_ids,
+                    input_ids_2,
+                    target_mask=(segment_ids == 1),
+                    target_mask_2=segment_ids_2,
+                    attention_mask_2=input_mask_2,
+                    token_type_ids=segment_ids,
+                    attention_mask=input_mask,
+                    # labels = label_ids,
+                    input_ids_3=input_ids_3,
+                    input_mask_3=input_mask_3,
+                    segment_ids_3=segment_ids_3,
+                )
+                loss_fct = nn.NLLLoss(weight=torch.Tensor(
+                    [1, args.class_weight]).to(args.device))
+                loss = loss_fct(
+                    logits.view(-1, args.num_labels), label_ids.view(-1))
 
             # average loss if on multi-gpu.
             if args.n_gpu > 1:
@@ -355,7 +405,8 @@ def run_train(
             all_guids, eval_dataloader = load_test_data(
                 args, logger, processor, task_name, label_list, tokenizer, output_mode, k
             )
-            result = run_eval(args, logger, model, eval_dataloader, all_guids, task_name)
+            result = run_eval(args, logger, model,
+                              eval_dataloader, all_guids, task_name)
 
             # update
             if result["f1"] > max_val_f1:
@@ -396,6 +447,20 @@ def run_eval(args, logger, model, eval_dataloader, all_guids, task_name, return_
                 input_mask_2,
                 segment_ids_2,
             ) = eval_batch
+        elif args.model_type == "CONTRAST":
+            (
+                input_ids,
+                input_mask,
+                segment_ids,
+                label_ids,
+                idx,
+                input_ids_2,
+                input_mask_2,
+                segment_ids_2,
+                input_ids_3,
+                input_mask_3,
+                segment_ids_3,
+            ) = eval_batch
         else:
             input_ids, input_mask, segment_ids, label_ids, idx = eval_batch
 
@@ -409,7 +474,8 @@ def run_eval(args, logger, model, eval_dataloader, all_guids, task_name, return_
                     attention_mask=input_mask,
                 )
                 loss_fct = nn.NLLLoss()
-                tmp_eval_loss = loss_fct(logits.view(-1, args.num_labels), label_ids.view(-1))
+                tmp_eval_loss = loss_fct(
+                    logits.view(-1, args.num_labels), label_ids.view(-1))
                 eval_loss += tmp_eval_loss.mean().item()
                 nb_eval_steps += 1
 
@@ -418,7 +484,8 @@ def run_eval(args, logger, model, eval_dataloader, all_guids, task_name, return_
                     pred_guids.append([all_guids[i] for i in idx])
                     out_label_ids = label_ids.detach().cpu().numpy()
                 else:
-                    preds[0] = np.append(preds[0], logits.detach().cpu().numpy(), axis=0)
+                    preds[0] = np.append(
+                        preds[0], logits.detach().cpu().numpy(), axis=0)
                     pred_guids[0].extend([all_guids[i] for i in idx])
                     out_label_ids = np.append(
                         out_label_ids, label_ids.detach().cpu().numpy(), axis=0
@@ -435,7 +502,8 @@ def run_eval(args, logger, model, eval_dataloader, all_guids, task_name, return_
                     attention_mask=input_mask,
                 )
                 loss_fct = nn.NLLLoss()
-                tmp_eval_loss = loss_fct(logits.view(-1, args.num_labels), label_ids.view(-1))
+                tmp_eval_loss = loss_fct(
+                    logits.view(-1, args.num_labels), label_ids.view(-1))
                 eval_loss += tmp_eval_loss.mean().item()
                 nb_eval_steps += 1
 
@@ -444,12 +512,43 @@ def run_eval(args, logger, model, eval_dataloader, all_guids, task_name, return_
                     pred_guids.append([all_guids[i] for i in idx])
                     out_label_ids = label_ids.detach().cpu().numpy()
                 else:
-                    preds[0] = np.append(preds[0], logits.detach().cpu().numpy(), axis=0)
+                    preds[0] = np.append(
+                        preds[0], logits.detach().cpu().numpy(), axis=0)
                     pred_guids[0].extend([all_guids[i] for i in idx])
                     out_label_ids = np.append(
                         out_label_ids, label_ids.detach().cpu().numpy(), axis=0
                     )
+            elif args.model_type == "CONTRAST":
+                logits = model(
+                    input_ids,
+                    input_ids_2,
+                    target_mask=(segment_ids == 1),
+                    target_mask_2=segment_ids_2,
+                    attention_mask_2=input_mask_2,
+                    token_type_ids=segment_ids,
+                    attention_mask=input_mask,
+                    input_ids_3=input_ids_3,
+                    input_mask_3=input_mask_3,
+                    segment_ids_3=segment_ids_3,
+                )
 
+                loss_fct = nn.NLLLoss()
+                tmp_eval_loss = loss_fct(
+                    logits.view(-1, args.num_labels), label_ids.view(-1))
+                eval_loss += tmp_eval_loss.mean().item()
+                nb_eval_steps += 1
+
+                if len(preds) == 0:
+                    preds.append(logits.detach().cpu().numpy())
+                    pred_guids.append([all_guids[i] for i in idx])
+                    out_label_ids = label_ids.detach().cpu().numpy()
+                else:
+                    preds[0] = np.append(
+                        preds[0], logits.detach().cpu().numpy(), axis=0)
+                    pred_guids[0].extend([all_guids[i] for i in idx])
+                    out_label_ids = np.append(
+                        out_label_ids, label_ids.detach().cpu().numpy(), axis=0
+                    )
     eval_loss = eval_loss / nb_eval_steps
     preds = preds[0]
     preds = np.argmax(preds, axis=1)
@@ -501,7 +600,10 @@ def load_pretrained_model(args):
         model = AutoModelForSequenceClassification_SPV_MIP(
             args=args, Model=bert, config=config, num_labels=args.num_labels
         )
-
+    if args.model_type == "CONTRAST":
+        model = AutoModelForSequenceClassification_WSD(
+            args=args, Model=bert, config=config, num_labels=args.num_labels
+        )
     model.to(args.device)
     if args.n_gpu > 1 and not args.no_cuda:
         model = torch.nn.DataParallel(model)

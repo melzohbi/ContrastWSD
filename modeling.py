@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from utils import Config
 from transformers import AutoTokenizer, AutoModel
@@ -24,7 +25,8 @@ class AutoModelForSequenceClassification(nn.Module):
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(
+                mean=0.0, std=self.config.initializer_range)
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
@@ -90,7 +92,8 @@ class AutoModelForTokenClassification(nn.Module):
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(
+                mean=0.0, std=self.config.initializer_range)
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
@@ -129,7 +132,8 @@ class AutoModelForTokenClassification(nn.Module):
         sequence_output = outputs[0]  # [batch, max_len, hidden]
         target_output = sequence_output * target_mask.unsqueeze(2)
         target_output = self.dropout(target_output)
-        target_output = target_output.sum(1) / target_mask.sum()  # [batch, hideen]
+        target_output = target_output.sum(
+            1) / target_mask.sum()  # [batch, hideen]
 
         logits = self.classifier(target_output)
         logits = self.logsoftmax(logits)
@@ -159,7 +163,8 @@ class AutoModelForSequenceClassification_SPV(nn.Module):
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(
+                mean=0.0, std=self.config.initializer_range)
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
@@ -197,7 +202,8 @@ class AutoModelForSequenceClassification_SPV(nn.Module):
         pooled_output = outputs[1]  # [batch, hidden]
 
         # Get target ouput with target mask
-        target_output = sequence_output * target_mask.unsqueeze(2)  # [batch, hidden]
+        target_output = sequence_output * \
+            target_mask.unsqueeze(2)  # [batch, hidden]
 
         # dropout
         target_output = self.dropout(target_output)
@@ -206,7 +212,8 @@ class AutoModelForSequenceClassification_SPV(nn.Module):
         # Get mean value of target output if the target output consistst of more than one token
         target_output = target_output.mean(1)
 
-        logits = self.classifier(torch.cat([target_output, pooled_output], dim=1))
+        logits = self.classifier(
+            torch.cat([target_output, pooled_output], dim=1))
         logits = self.logsoftmax(logits)
 
         if labels is not None:
@@ -235,7 +242,8 @@ class AutoModelForSequenceClassification_MIP(nn.Module):
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(
+                mean=0.0, std=self.config.initializer_range)
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
@@ -281,10 +289,12 @@ class AutoModelForSequenceClassification_MIP(nn.Module):
         # Get target ouput with target mask
         target_output = sequence_output * target_mask.unsqueeze(2)
         target_output = self.dropout(target_output)
-        target_output = target_output.sum(1) / target_mask.sum()  # [batch, hidden]
+        target_output = target_output.sum(
+            1) / target_mask.sum()  # [batch, hidden]
 
         # Second encoder for only the target word
-        outputs_2 = self.encoder(input_ids_2, attention_mask=attention_mask_2, head_mask=head_mask)
+        outputs_2 = self.encoder(
+            input_ids_2, attention_mask=attention_mask_2, head_mask=head_mask)
         sequence_output_2 = outputs_2[0]  # [batch, max_len, hidden]
 
         # Get target ouput with target mask
@@ -292,7 +302,8 @@ class AutoModelForSequenceClassification_MIP(nn.Module):
         target_output_2 = self.dropout(target_output_2)
         target_output_2 = target_output_2.sum(1) / target_mask_2.sum()
 
-        logits = self.classifier(torch.cat([target_output_2, target_output], dim=1))
+        logits = self.classifier(
+            torch.cat([target_output_2, target_output], dim=1))
         logits = self.logsoftmax(logits)
 
         if labels is not None:
@@ -314,8 +325,10 @@ class AutoModelForSequenceClassification_SPV_MIP(nn.Module):
         self.dropout = nn.Dropout(args.drop_ratio)
         self.args = args
 
-        self.SPV_linear = nn.Linear(config.hidden_size * 2, args.classifier_hidden)
-        self.MIP_linear = nn.Linear(config.hidden_size * 2, args.classifier_hidden)
+        self.SPV_linear = nn.Linear(
+            config.hidden_size * 2, args.classifier_hidden)
+        self.MIP_linear = nn.Linear(
+            config.hidden_size * 2, args.classifier_hidden)
         self.classifier = nn.Linear(args.classifier_hidden * 2, num_labels)
         self._init_weights(self.SPV_linear)
         self._init_weights(self.MIP_linear)
@@ -326,7 +339,8 @@ class AutoModelForSequenceClassification_SPV_MIP(nn.Module):
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Embedding)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(
+                mean=0.0, std=self.config.initializer_range)
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
@@ -381,7 +395,8 @@ class AutoModelForSequenceClassification_SPV_MIP(nn.Module):
         target_output = target_output.mean(1)  # [batch, hidden]
 
         # Second encoder for only the target word
-        outputs_2 = self.encoder(input_ids_2, attention_mask=attention_mask_2, head_mask=head_mask)
+        outputs_2 = self.encoder(
+            input_ids_2, attention_mask=attention_mask_2, head_mask=head_mask)
         sequence_output_2 = outputs_2[0]  # [batch, max_len, hidden]
 
         # Get target ouput with target mask
@@ -390,14 +405,148 @@ class AutoModelForSequenceClassification_SPV_MIP(nn.Module):
         target_output_2 = target_output_2.mean(1)
 
         # Get hidden vectors each from SPV and MIP linear layers
-        SPV_hidden = self.SPV_linear(torch.cat([pooled_output, target_output], dim=1))
-        MIP_hidden = self.MIP_linear(torch.cat([target_output_2, target_output], dim=1))
+        SPV_hidden = self.SPV_linear(
+            torch.cat([pooled_output, target_output], dim=1))
+        MIP_hidden = self.MIP_linear(
+            torch.cat([target_output_2, target_output], dim=1))
 
-        logits = self.classifier(self.dropout(torch.cat([SPV_hidden, MIP_hidden], dim=1)))
+        logits = self.classifier(self.dropout(
+            torch.cat([SPV_hidden, MIP_hidden], dim=1)))
         logits = self.logsoftmax(logits)
 
         if labels is not None:
             loss_fct = nn.NLLLoss()
+            loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            return loss
+        return logits
+
+
+class AutoModelForSequenceClassification_WSD(nn.Module):
+
+    def __init__(self, args, Model, config, num_labels=2):
+        """Initialize the model"""
+        super(AutoModelForSequenceClassification_WSD, self).__init__()
+        self.num_labels = num_labels
+        self.encoder = Model
+        self.config = config
+        self.dropout = nn.Dropout(args.drop_ratio)
+        self.args = args
+        self.helper_1_linear = nn.Linear(
+            config.hidden_size * 2 + 1, config.hidden_size)
+        self.helper_2_linear = nn.Linear(
+            config.hidden_size * 2 + 1, config.hidden_size)
+        self.MIP_linear = nn.Linear(
+            config.hidden_size * 2 + 1, args.classifier_hidden)
+
+        self.classifier = nn.Linear(args.classifier_hidden * 3, num_labels)
+        self.logsoftmax = nn.LogSoftmax(dim=1)
+
+        self.device = args.device
+        self.class_weight = args.class_weight
+
+        self._init_weights(self.helper_1_linear)
+        self._init_weights(self.helper_2_linear)
+        self._init_weights(self.MIP_linear)
+        self._init_weights(self.classifier)
+
+    def _init_weights(self, module):
+        """Initialize the weights"""
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            module.weight.data.normal_(
+                mean=0.0, std=self.config.initializer_range)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
+
+    def forward(
+        self,
+        input_ids,
+        input_ids_2,
+        target_mask,
+        target_mask_2,
+        attention_mask_2,
+        token_type_ids=None,
+        attention_mask=None,
+        labels=None,
+        head_mask=None,
+        input_ids_3=None,
+        input_mask_3=None,
+        segment_ids_3=None,
+    ):
+        outputs = self.encoder(
+            input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
+            head_mask=head_mask,
+        )
+        sequence_output = outputs[0]
+
+        # this is the pooled output of the last layer
+        pooled_output = outputs[1]
+        pooled_output = self.dropout(pooled_output)
+
+        target_output = sequence_output * target_mask.unsqueeze(2)
+        target_output = self.dropout(target_output)
+        target_output = target_output.mean(1)
+
+        outputs_2 = self.encoder(
+            input_ids_2, attention_mask=attention_mask_2, head_mask=head_mask)
+        sequence_output_2 = outputs_2[0]
+        target_output_2 = sequence_output_2 * (target_mask_2 == 1).unsqueeze(2)
+
+        def_output_2 = sequence_output_2 * (target_mask_2 == 2).unsqueeze(2)
+
+        target_output_2 = self.dropout(target_output_2)
+        target_output_2 = target_output_2.mean(1)
+
+        def_output_2 = self.dropout(def_output_2)
+        def_output_2 = def_output_2.mean(1)
+
+        try:
+            outputs_3 = self.encoder(input_ids_3.squeeze(
+            ), attention_mask=input_mask_3.squeeze(), head_mask=head_mask)
+        except:
+            outputs_3 = self.encoder(input_ids_3.squeeze(
+                1), attention_mask=input_mask_3.squeeze(1), head_mask=head_mask)
+
+        sequence_output_3 = outputs_3[0]  # [batch, max_len, hidden]
+
+        target_output_3 = sequence_output_3 * (segment_ids_3 == 1).unsqueeze(2)
+
+        def_output_3 = sequence_output_3 * (segment_ids_3 == 2).unsqueeze(2)
+
+        target_output_3 = self.dropout(target_output_3)
+        target_output_3 = target_output_3.mean(1)
+
+        def_output_3 = self.dropout(def_output_3)
+        def_output_3 = def_output_3.mean(1)
+
+        cos_helper_1 = F.cosine_similarity(
+            target_output, target_output_2, dim=1).unsqueeze(1)
+
+        cos_helper_2 = F.cosine_similarity(
+            target_output, target_output_3, dim=1).unsqueeze(1)
+
+        cos_MIP = F.cosine_similarity(
+            def_output_2, def_output_3, dim=1).unsqueeze(1)
+
+        helper_1_hidden = self.helper_1_linear(
+            torch.cat([target_output, target_output_2, cos_helper_1], dim=1))
+        helper_2_hidden = self.helper_2_linear(
+            torch.cat([target_output, target_output_3, cos_helper_2], dim=1))
+
+        MIP_hidden = self.MIP_linear(
+            torch.cat([def_output_2, def_output_3, cos_MIP], dim=1))
+
+        logits = self.classifier(self.dropout(
+            torch.cat([MIP_hidden, helper_1_hidden, helper_2_hidden], dim=1)))
+        logits = self.logsoftmax(logits)
+
+        if labels is not None:
+            loss_fct = nn.NLLLoss(weight=torch.Tensor(
+                [1, self.class_weight])).to(self.device)
             loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
             return loss
         return logits
