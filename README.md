@@ -4,4 +4,4 @@ ContrastWSD, a RoBERTa-based metaphor detection model that integrates the Metaph
 
 The source code is based on MelBERT source code (https://github.com/jin530/MelBERT) and extended to add the ContrastWSD model and evaluation.
 
-## The datasets will be uploaded soon!
+## You can find the dataset here [https://www.kaggle.com/datasets/melzohbi/metaphor-detection-vua-wsd-augmented/data]
